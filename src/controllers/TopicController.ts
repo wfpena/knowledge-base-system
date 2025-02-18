@@ -24,6 +24,7 @@ export class TopicController {
       const topic = await this.topicService.updateTopic(id, name, content);
       res.json(topic);
     } catch (error) {
+      this.logger.error('Failed to update topic', error);
       res.status(400).json({ error: (error as Error).message });
     }
   }
@@ -60,6 +61,7 @@ export class TopicController {
       const hierarchy = await this.topicService.getTopicHierarchy(id);
       res.json(hierarchy);
     } catch (error) {
+      this.logger.error('Failed to get topic hierarchy', error);
       res.status(400).json({ error: (error as Error).message });
     }
   }
@@ -70,6 +72,7 @@ export class TopicController {
       const path = await this.topicService.findShortestPath(startId, endId);
       res.json(path);
     } catch (error) {
+      this.logger.error('Failed to find path', error);
       res.status(400).json({ error: (error as Error).message });
     }
   }

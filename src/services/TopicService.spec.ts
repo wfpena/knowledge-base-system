@@ -35,7 +35,7 @@ describe('TopicService', () => {
       expect(createdTopic.content).toBe(topicData.content);
       expect(createdTopic.parentTopicId).toBe(topicData.parentTopicId);
       expect(createdTopic.version).toBe(1);
-      expect(mockDb.saveTopic).toHaveBeenCalledWith(createdTopic);
+      expect(mockDb.createTopic).toHaveBeenCalledWith(createdTopic);
     });
 
     it('should throw error for invalid topic data', async () => {
@@ -69,7 +69,7 @@ describe('TopicService', () => {
       expect(updatedTopic.name).toBe('New Name');
       expect(updatedTopic.content).toBe('New Content');
       expect(updatedTopic.version).toBe(2);
-      expect(mockDb.saveTopic).toHaveBeenCalledWith(updatedTopic);
+      expect(mockDb.updateTopic).toHaveBeenCalledWith(updatedTopic, existingTopic);
     });
 
     it('should throw error when topic not found', async () => {
@@ -104,7 +104,10 @@ describe('TopicService', () => {
         if (id === 'child') return Promise.resolve(childTopic);
         return Promise.resolve(null);
       });
-      mockDb.getAllTopics.mockResolvedValue([parentTopic, childTopic]);
+      mockDb.getTopicChildren.mockImplementation((id) => {
+        if (id === 'parent') return Promise.resolve([childTopic]);
+        return Promise.resolve([]);
+      });
 
       const hierarchy = await topicService.getTopicHierarchy('parent');
 
@@ -123,179 +126,195 @@ describe('TopicService', () => {
     it('should throw error when topic not found', async () => {
       mockDb.getLatestTopic.mockResolvedValue(null);
 
-      await expect(topicService.getTopicHierarchy('123')).rejects.toThrow('Topic not found');
+      await expect(topicService.getTopicHierarchy('123')).rejects.toThrow(
+        'Topic with id 123 not found',
+      );
     });
   });
 
   describe('findShortestPath', () => {
     it('should find path between topics', async () => {
-      const topics = [
-        new Topic({ id: 'A', name: 'A', content: 'A', version: 1, parentTopicId: null }),
-        new Topic({ id: 'B', name: 'B', content: 'B', version: 1, parentTopicId: 'A' }),
-        new Topic({ id: 'C', name: 'C', content: 'C', version: 1, parentTopicId: 'B' }),
-      ];
-
-      mockDb.getAllTopics.mockResolvedValue(topics);
+      mockDb.getTopicConnections.mockImplementation((id) => {
+        if (id === 'A') return Promise.resolve({ parentId: null, childIds: ['B'] });
+        if (id === 'B') return Promise.resolve({ parentId: 'A', childIds: ['C'] });
+        if (id === 'C') return Promise.resolve({ parentId: 'B', childIds: [] });
+        return Promise.resolve({ parentId: null, childIds: [] });
+      });
 
       const path = await topicService.findShortestPath('A', 'C');
-
       expect(path).toEqual(['A', 'B', 'C']);
     });
 
     it('should return empty array when no path exists', async () => {
-      const topics = [
-        new Topic({ id: 'A', name: 'A', content: 'A', version: 1, parentTopicId: null }),
-        new Topic({ id: 'B', name: 'B', content: 'B', version: 1, parentTopicId: null }),
-      ];
-
-      mockDb.getAllTopics.mockResolvedValue(topics);
+      mockDb.getTopicConnections.mockImplementation((id) => {
+        if (id === 'A') return Promise.resolve({ parentId: null, childIds: [] });
+        if (id === 'B') return Promise.resolve({ parentId: null, childIds: [] });
+        return Promise.resolve({ parentId: null, childIds: [] });
+      });
 
       const path = await topicService.findShortestPath('A', 'B');
-
       expect(path).toEqual([]);
     });
 
     it('should return the shortest path when a direct connection exists', async () => {
-      mockDb.getAllTopics.mockResolvedValue([
-        { id: 'A', parentTopicId: null },
-        { id: 'B', parentTopicId: 'A' },
-        { id: 'C', parentTopicId: 'B' },
-      ] as Topic[]);
+      mockDb.getTopicConnections.mockImplementation((id) => {
+        if (id === 'A') return Promise.resolve({ parentId: null, childIds: ['B'] });
+        if (id === 'B') return Promise.resolve({ parentId: 'A', childIds: ['C'] });
+        if (id === 'C') return Promise.resolve({ parentId: 'B', childIds: [] });
+        return Promise.resolve({ parentId: null, childIds: [] });
+      });
 
       const path = await topicService.findShortestPath('A', 'C');
       expect(path).toEqual(['A', 'B', 'C']);
     });
 
     it('should return an empty array when no path exists', async () => {
-      mockDb.getAllTopics.mockResolvedValue([
-        { id: 'A', parentTopicId: null },
-        { id: 'B', parentTopicId: 'A' },
-        { id: 'C', parentTopicId: null }, // Disconnected
-      ] as Topic[]);
+      mockDb.getTopicConnections.mockImplementation((id) => {
+        if (id === 'A') return Promise.resolve({ parentId: null, childIds: ['B'] });
+        if (id === 'B') return Promise.resolve({ parentId: 'A', childIds: [] });
+        if (id === 'C') return Promise.resolve({ parentId: null, childIds: [] });
+        return Promise.resolve({ parentId: null, childIds: [] });
+      });
 
       const path = await topicService.findShortestPath('A', 'C');
       expect(path).toEqual([]);
     });
 
     it('should return a single element array when start and end are the same', async () => {
-      mockDb.getAllTopics.mockResolvedValue([
-        { id: 'A', parentTopicId: null },
-        { id: 'B', parentTopicId: 'A' },
-      ] as Topic[]);
+      mockDb.getTopicConnections.mockImplementation((id) => {
+        if (id === 'A') return Promise.resolve({ parentId: 'A', childIds: [] });
+        if (id === 'B') return Promise.resolve({ parentId: 'B', childIds: ['A'] });
+        return Promise.resolve({ parentId: null, childIds: [] });
+      });
 
       const path = await topicService.findShortestPath('A', 'A');
       expect(path).toEqual(['A']);
     });
 
     it('should be able to handle complex cycles', async () => {
-      mockDb.getAllTopics.mockResolvedValue([
-        { id: 'A', parentTopicId: null },
-        { id: 'B', parentTopicId: 'A' },
-        { id: 'C', parentTopicId: 'A' },
-        { id: 'D', parentTopicId: 'B' },
-        { id: 'E', parentTopicId: 'C' },
-        { id: 'F', parentTopicId: 'D' },
-        { id: 'G', parentTopicId: 'E' },
-        { id: 'H', parentTopicId: 'F' },
-        { id: 'I', parentTopicId: 'G' },
-        { id: 'J', parentTopicId: 'H' },
-        { id: 'K', parentTopicId: 'I' },
-        { id: 'L', parentTopicId: 'J' },
-        { id: 'M', parentTopicId: 'K' },
-        { id: 'N', parentTopicId: 'L' },
-        { id: 'O', parentTopicId: 'M' },
-        { id: 'P', parentTopicId: 'N' },
-        { id: 'Q', parentTopicId: 'O' },
-        { id: 'R', parentTopicId: 'P' },
-        { id: 'S', parentTopicId: 'Q' },
-        { id: 'T', parentTopicId: 'R' },
-        { id: 'U', parentTopicId: 'S' },
-      ] as Topic[]);
+      mockDb.getTopicConnections.mockImplementation((id) => {
+        const connections = {
+          A: { parentId: null, childIds: ['B', 'C'] },
+          B: { parentId: 'A', childIds: ['D'] },
+          C: { parentId: 'A', childIds: ['E'] },
+          D: { parentId: 'B', childIds: ['F'] },
+          E: { parentId: 'C', childIds: ['G'] },
+          F: { parentId: 'D', childIds: ['H'] },
+          G: { parentId: 'E', childIds: ['I'] },
+          H: { parentId: 'F', childIds: ['J'] },
+          I: { parentId: 'G', childIds: ['K'] },
+          J: { parentId: 'H', childIds: ['L'] },
+          K: { parentId: 'I', childIds: ['M'] },
+          L: { parentId: 'J', childIds: ['N'] },
+          M: { parentId: 'K', childIds: ['O'] },
+          N: { parentId: 'L', childIds: ['P'] },
+          O: { parentId: 'M', childIds: ['Q'] },
+          P: { parentId: 'N', childIds: ['R'] },
+          Q: { parentId: 'O', childIds: ['S'] },
+          R: { parentId: 'P', childIds: ['T'] },
+          S: { parentId: 'Q', childIds: ['U'] },
+          T: { parentId: 'R', childIds: [] },
+          U: { parentId: 'S', childIds: [] },
+        };
+        return Promise.resolve(
+          connections[id as keyof typeof connections] || { parentId: null, childIds: [] },
+        );
+      });
 
       const path = await topicService.findShortestPath('A', 'U');
       expect(path).toEqual(['A', 'C', 'E', 'G', 'I', 'K', 'M', 'O', 'Q', 'S', 'U']);
     });
 
     it('should be able to handle complex cycles - case 2', async () => {
-      mockDb.getAllTopics.mockResolvedValue([
-        { id: 'A', parentTopicId: null },
-        { id: 'B', parentTopicId: 'A' },
-        { id: 'C', parentTopicId: 'A' },
-        { id: 'D', parentTopicId: 'B' },
-        { id: 'E', parentTopicId: 'C' },
-        { id: 'F', parentTopicId: 'D' },
-        { id: 'G', parentTopicId: 'E' },
-        { id: 'H', parentTopicId: 'F' },
-        { id: 'I', parentTopicId: 'G' },
-        { id: 'J', parentTopicId: 'H' },
-        { id: 'K', parentTopicId: 'I' },
-        { id: 'L', parentTopicId: 'J' },
-        { id: 'M', parentTopicId: 'K' },
-        { id: 'N', parentTopicId: 'L' },
-        { id: 'O', parentTopicId: 'M' },
-        { id: 'P', parentTopicId: 'N' },
-        { id: 'Q', parentTopicId: 'O' },
-        { id: 'R', parentTopicId: 'P' },
-        { id: 'S', parentTopicId: 'Q' },
-        { id: 'T', parentTopicId: 'R' },
-        { id: 'U', parentTopicId: 'S' },
-      ] as Topic[]);
+      mockDb.getTopicConnections.mockImplementation((id) => {
+        const connections = {
+          A: { parentId: null, childIds: ['B', 'C'] },
+          B: { parentId: 'A', childIds: ['D'] },
+          C: { parentId: 'A', childIds: ['E'] },
+          D: { parentId: 'B', childIds: ['F'] },
+          E: { parentId: 'C', childIds: ['G'] },
+          F: { parentId: 'D', childIds: ['H'] },
+          G: { parentId: 'E', childIds: ['I'] },
+          H: { parentId: 'F', childIds: ['J'] },
+          I: { parentId: 'G', childIds: ['K'] },
+          J: { parentId: 'H', childIds: ['L'] },
+          K: { parentId: 'I', childIds: ['M'] },
+          L: { parentId: 'J', childIds: ['N'] },
+          M: { parentId: 'K', childIds: ['O'] },
+          N: { parentId: 'L', childIds: ['P'] },
+          O: { parentId: 'M', childIds: ['Q'] },
+          P: { parentId: 'N', childIds: ['R'] },
+          Q: { parentId: 'O', childIds: ['S'] },
+          R: { parentId: 'P', childIds: ['T'] },
+          S: { parentId: 'Q', childIds: ['U'] },
+          T: { parentId: 'R', childIds: [] },
+          U: { parentId: 'S', childIds: [] },
+        };
+        return Promise.resolve(
+          connections[id as keyof typeof connections] || { parentId: null, childIds: [] },
+        );
+      });
 
       const path = await topicService.findShortestPath('P', 'R');
       expect(path).toEqual(['P', 'R']);
     });
 
     it('should be able to handle complex cycles - case 3', async () => {
-      mockDb.getAllTopics.mockResolvedValue([
-        { id: 'A', parentTopicId: null },
-        { id: 'B', parentTopicId: 'A' },
-        { id: 'C', parentTopicId: 'A' },
-        { id: 'D', parentTopicId: 'B' },
-        { id: 'E', parentTopicId: 'C' },
-        { id: 'F', parentTopicId: 'D' },
-        { id: 'G', parentTopicId: 'E' },
-        { id: 'H', parentTopicId: 'F' },
-        { id: 'I', parentTopicId: 'G' },
-        { id: 'J', parentTopicId: 'H' },
-        { id: 'K', parentTopicId: 'I' },
-        { id: 'L', parentTopicId: 'J' },
-        { id: 'M', parentTopicId: 'K' },
-        { id: 'N', parentTopicId: 'L' },
-        { id: 'O', parentTopicId: 'M' },
-        { id: 'P', parentTopicId: 'N' },
-        { id: 'Q', parentTopicId: 'O' },
-        { id: 'R', parentTopicId: 'P' },
-        { id: 'S', parentTopicId: 'Q' },
-        { id: 'T', parentTopicId: 'R' },
-        { id: 'U', parentTopicId: 'S' },
-      ] as Topic[]);
+      mockDb.getTopicConnections.mockImplementation((id) => {
+        const connections = {
+          A: { parentId: null, childIds: ['B', 'C'] },
+          B: { parentId: 'A', childIds: ['D'] },
+          C: { parentId: 'A', childIds: ['E'] },
+          D: { parentId: 'B', childIds: ['F'] },
+          E: { parentId: 'C', childIds: ['G'] },
+          F: { parentId: 'D', childIds: ['H'] },
+          G: { parentId: 'E', childIds: ['I'] },
+          H: { parentId: 'F', childIds: ['J'] },
+          I: { parentId: 'G', childIds: ['K'] },
+          J: { parentId: 'H', childIds: ['L'] },
+          K: { parentId: 'I', childIds: ['M'] },
+          L: { parentId: 'J', childIds: ['N'] },
+          M: { parentId: 'K', childIds: ['O'] },
+          N: { parentId: 'L', childIds: ['P'] },
+          O: { parentId: 'M', childIds: ['Q'] },
+          P: { parentId: 'N', childIds: ['R'] },
+          Q: { parentId: 'O', childIds: ['S'] },
+          R: { parentId: 'P', childIds: ['T'] },
+          S: { parentId: 'Q', childIds: ['U'] },
+          T: { parentId: 'R', childIds: [] },
+          U: { parentId: 'S', childIds: [] },
+        };
+        return Promise.resolve(
+          connections[id as keyof typeof connections] || { parentId: null, childIds: [] },
+        );
+      });
 
       const path = await topicService.findShortestPath('K', 'G');
       expect(path).toEqual(['K', 'I', 'G']);
     });
 
     it('should handle cycles correctly', async () => {
-      mockDb.getAllTopics.mockResolvedValue([
-        { id: 'A', parentTopicId: null },
-        { id: 'B', parentTopicId: 'A' },
-        { id: 'C', parentTopicId: 'B' },
-        { id: 'A', parentTopicId: 'C' }, // Cycle!
-      ] as Topic[]);
+      mockDb.getTopicConnections.mockImplementation((id) => {
+        if (id === 'A') return Promise.resolve({ parentId: null, childIds: ['B', 'C'] });
+        if (id === 'B') return Promise.resolve({ parentId: 'A', childIds: ['C'] });
+        if (id === 'C') return Promise.resolve({ parentId: 'A', childIds: ['B'] });
+        return Promise.resolve({ parentId: null, childIds: [] });
+      });
 
       const path = await topicService.findShortestPath('A', 'C');
       expect(path).toEqual(['A', 'C']); // Shortest valid path
     });
 
     it('should return the shortest path in a more complex graph', async () => {
-      mockDb.getAllTopics.mockResolvedValue([
-        { id: 'A', parentTopicId: null },
-        { id: 'B', parentTopicId: 'A' },
-        { id: 'C', parentTopicId: 'A' },
-        { id: 'D', parentTopicId: 'B' },
-        { id: 'E', parentTopicId: 'C' },
-        { id: 'F', parentTopicId: 'D' },
-        { id: 'F', parentTopicId: 'E' }, // Two paths to F
-      ] as Topic[]);
+      mockDb.getTopicConnections.mockImplementation((id) => {
+        if (id === 'A') return Promise.resolve({ parentId: null, childIds: ['B', 'C'] });
+        if (id === 'B') return Promise.resolve({ parentId: 'A', childIds: ['D'] });
+        if (id === 'C') return Promise.resolve({ parentId: 'A', childIds: ['E'] });
+        if (id === 'D') return Promise.resolve({ parentId: 'B', childIds: ['F'] });
+        if (id === 'E') return Promise.resolve({ parentId: 'C', childIds: ['F'] });
+        if (id === 'F') return Promise.resolve({ parentId: 'D', childIds: ['G'] });
+        return Promise.resolve({ parentId: null, childIds: [] });
+      });
 
       const path = await topicService.findShortestPath('A', 'F');
       expect(path).toEqual(['A', 'B', 'D', 'F']); // Shortest path

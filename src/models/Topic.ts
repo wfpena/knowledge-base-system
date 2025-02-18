@@ -1,21 +1,26 @@
 import { BaseEntity } from './BaseEntity';
-import { ITopic } from '../types';
 
 export class Topic extends BaseEntity {
+  id: string;
   name: string;
   content: string;
   version: number;
   parentTopicId: string | null;
+  createdAt: Date;
+  updatedAt: Date;
 
-  constructor(data: Omit<ITopic, 'createdAt' | 'updatedAt'>) {
-    super(data.id);
-    this.name = data.name;
-    this.content = data.content;
-    this.version = data.version;
-    this.parentTopicId = data.parentTopicId;
+  constructor(data: Partial<Topic>) {
+    super(data.id || '');
+    this.id = data.id || '';
+    this.name = data.name || '';
+    this.content = data.content || '';
+    this.version = data.version || 1;
+    this.parentTopicId = data.parentTopicId || null;
+    this.createdAt = data.createdAt || new Date();
+    this.updatedAt = data.updatedAt || new Date();
   }
 
   validate(): boolean {
-    return Boolean(this.name && this.content && this.version >= 0);
+    return this.name.length > 0 && this.content.length > 0;
   }
 }

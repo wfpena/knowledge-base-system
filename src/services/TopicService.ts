@@ -16,13 +16,15 @@ export class TopicService {
       content,
       version: 1,
       parentTopicId,
+      createdAt: new Date(),
+      updatedAt: new Date(),
     });
 
     if (!topic.validate()) {
       throw new Error('Invalid topic data');
     }
 
-    await this.db.saveTopic(topic);
+    await this.db.createTopic(topic);
     return topic;
   }
 
@@ -37,10 +39,13 @@ export class TopicService {
       name,
       content,
       version: currentTopic.version + 1,
-      parentTopicId: currentTopic.parentTopicId,
+      parentTopicId: currentTopic.parentTopicId || null,
+      createdAt: currentTopic.createdAt,
+      updatedAt: new Date(),
     });
 
-    await this.db.saveTopic(newVersion);
+    await this.db.updateTopic(newVersion, currentTopic);
+
     return newVersion;
   }
 
@@ -50,13 +55,16 @@ export class TopicService {
 
   // Recursive topic retrieval
   async getTopicHierarchy(topicId: string): Promise<any> {
-    const topic = await this.db.getLatestTopic(topicId);
-    if (!topic) {
-      throw new Error('Topic not found');
+    if (!topicId) {
+      throw new Error('Topic ID is required');
     }
 
-    const allTopics = await this.db.getAllTopics();
-    const children = allTopics.filter((t) => t.parentTopicId === topicId);
+    const topic = await this.db.getLatestTopic(topicId);
+    if (!topic) {
+      throw new Error(`Topic with id ${topicId} not found`);
+    }
+
+    const children = await this.db.getTopicChildren(topicId);
 
     const result = {
       ...topic,
@@ -67,36 +75,24 @@ export class TopicService {
   }
 
   async findShortestPath(startTopicId: string, endTopicId: string): Promise<string[]> {
-    const allTopics = await this.db.getAllTopics();
-    const graph = new Map<string, string[]>();
-
-    // Build adjacency list
-    for (const topic of allTopics) {
-      const connections: string[] = [];
-      if (topic.parentTopicId) {
-        connections.push(topic.parentTopicId);
-      }
-      const children = allTopics.filter((t) => t.parentTopicId === topic.id);
-      connections.push(...children.map((c) => c.id));
-      graph.set(topic.id, connections);
-    }
-
     // BFS implementation
     const queue: string[][] = [[startTopicId]];
     const visited = new Set<string>([startTopicId]);
 
     while (queue.length > 0) {
       const path = queue.shift();
-      if (!path) {
-        continue;
-      }
+      if (!path) continue;
       const currentId = path[path.length - 1];
 
       if (currentId === endTopicId) {
         return path;
       }
 
-      const neighbors = graph.get(currentId) || [];
+      // Get connections only when needed
+      const connections = await this.db.getTopicConnections(currentId);
+      const neighbors = [...connections.childIds];
+      if (connections.parentId) neighbors.push(connections.parentId);
+
       for (const neighbor of neighbors) {
         if (!visited.has(neighbor)) {
           visited.add(neighbor);
@@ -116,7 +112,7 @@ export class TopicService {
     return topic;
   }
 
-  async getTopicVersion(id: string, version: number) {
+  async getTopicVersion(id: string, version?: number) {
     const topic = await this.db.getTopicVersion(id, version);
     if (!topic) {
       return null;

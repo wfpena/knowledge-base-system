@@ -3,6 +3,8 @@ import { Topic } from '../models/Topic';
 import { User } from '../models/User';
 import { Resource } from '../models/Resource';
 import { UserRole } from '../types';
+import { config } from '../config';
+import { TopicVersion } from '../models/TopicVersion';
 
 export class DatabaseService {
   private db: Database.Database;
@@ -11,7 +13,7 @@ export class DatabaseService {
     if (process.env.NODE_ENV === 'test') {
       this.db = new Database(':memory:');
     } else {
-      this.db = new Database('./data/database.sqlite');
+      this.db = new Database(config.databasePath);
     }
     this.initializeTables();
   }
@@ -24,7 +26,9 @@ export class DatabaseService {
         name TEXT NOT NULL,
         content TEXT NOT NULL,
         currentVersion INTEGER NOT NULL DEFAULT 1,
-        parentTopicId TEXT,
+        parentTopicId TEXT NULL,
+        createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (parentTopicId) REFERENCES topics(id)
       );
 
@@ -34,8 +38,10 @@ export class DatabaseService {
         name TEXT NOT NULL,
         content TEXT NOT NULL,
         version INTEGER NOT NULL,
+        parentTopicId TEXT NULL,
         createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (topicId) REFERENCES topics(id),
+        FOREIGN KEY (parentTopicId) REFERENCES topics(id),
         UNIQUE(topicId, version)
       );
     `);
@@ -69,78 +75,107 @@ export class DatabaseService {
   }
 
   // Topic methods
-  async saveTopic(topic: Topic): Promise<void> {
+  async createTopic(topic: Topic): Promise<void> {
+    this.db
+      .prepare(
+        `
+      INSERT INTO topics (id, name, content, currentVersion, parentTopicId, createdAt, updatedAt)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `,
+      )
+      .run(
+        topic.id,
+        topic.name,
+        topic.content,
+        topic.version,
+        topic.parentTopicId,
+        topic.createdAt.toISOString(),
+        topic.updatedAt.toISOString(),
+      );
+  }
+
+  async updateTopic(newTopic: Topic, currentTopic: Topic): Promise<void> {
     const db = this.db;
 
     try {
-      // Start transaction
       db.exec('BEGIN');
 
-      // Insert or update main topic record
+      // Update main topic record
       const topicStmt = db.prepare(`
-        INSERT OR REPLACE INTO topics (id, name, content, currentVersion, parentTopicId)
-        VALUES (?, ?, ?, ?, ?)
+        UPDATE topics 
+        SET name = ?, content = ?, currentVersion = ?, parentTopicId = ?, updatedAt = ?
+        WHERE id = ?
       `);
 
-      // Insert version record
+      // Insert new version record
       const versionStmt = db.prepare(`
-        INSERT INTO topic_versions (topicId, name, content, version)
-        VALUES (?, ?, ?, ?)
+        INSERT INTO topic_versions (topicId, name, content, version, parentTopicId, createdAt)
+        VALUES (?, ?, ?, ?, ?, ?)
       `);
 
-      topicStmt.run(topic.id, topic.name, topic.content, topic.version, topic.parentTopicId);
-      versionStmt.run(topic.id, topic.name, topic.content, topic.version);
+      topicStmt.run(
+        newTopic.name,
+        newTopic.content,
+        newTopic.version,
+        newTopic.parentTopicId,
+        newTopic.updatedAt?.toISOString() || new Date().toISOString(),
+        newTopic.id,
+      );
 
-      // Commit transaction
+      versionStmt.run(
+        currentTopic.id,
+        currentTopic.name,
+        currentTopic.content,
+        currentTopic.version,
+        currentTopic.parentTopicId,
+        currentTopic.createdAt?.toISOString() || new Date().toISOString(),
+      );
+
       db.exec('COMMIT');
     } catch (error) {
-      // Rollback on error
       db.exec('ROLLBACK');
       throw error;
     }
   }
 
-  async getTopicVersion(id: string, version: number): Promise<Topic | null> {
-    const stmt = this.db.prepare(`
-      SELECT tv.*, t.parentTopicId 
-      FROM topic_versions tv
-      JOIN topics t ON t.id = tv.topicId
-      WHERE tv.topicId = ? AND tv.version = ?
-    `);
-    const row = stmt.get(id, version);
-    return row ? this.rowToTopic(row) : null;
+  async getTopicVersion(id: string, version?: number): Promise<Topic | null> {
+    if (version) {
+      const stmt = this.db.prepare(`
+        SELECT tv.*, t.parentTopicId 
+        FROM topic_versions tv
+        JOIN topics t ON t.id = tv.topicId
+        WHERE tv.topicId = ? AND tv.version = ?
+      `);
+      const row = stmt.get(id, version);
+      return row ? this.rowToTopic(row) : null;
+    } else {
+      return this.getLatestTopic(id);
+    }
   }
 
   async getLatestTopic(id: string): Promise<Topic | null> {
     const stmt = this.db.prepare(`
-      SELECT tv.*, t.parentTopicId
+      SELECT t.*
       FROM topics t
-      JOIN topic_versions tv ON t.id = tv.topicId
-      WHERE t.id = ? AND tv.version = t.currentVersion
+      WHERE t.id = ?
     `);
     const row = stmt.get(id);
     return row ? this.rowToTopic(row) : null;
   }
 
-  async getTopicVersions(id: string): Promise<Topic[]> {
+  async getTopicVersions(id: string): Promise<TopicVersion[]> {
     const stmt = this.db.prepare(`
-      SELECT tv.*, t.parentTopicId
+      SELECT tv.*
       FROM topic_versions tv
-      JOIN topics t ON t.id = tv.topicId
       WHERE tv.topicId = ?
       ORDER BY tv.version DESC
     `);
     const rows = stmt.all(id);
-    return rows.map(this.rowToTopic);
+    return rows.map(this.rowToTopicVersion);
   }
 
   async getAllTopics(): Promise<Topic[]> {
-    const stmt = this.db.prepare(`
-      SELECT tv.*, t.parentTopicId
-      FROM topics t
-      JOIN topic_versions tv ON t.id = tv.topicId
-      WHERE tv.version = t.currentVersion
-    `);
+    const stmt = this.db.prepare(`SELECT t.* FROM topics t`);
     const rows = stmt.all();
     return rows.map(this.rowToTopic);
   }
@@ -208,11 +243,13 @@ export class DatabaseService {
   // Helper methods to convert DB rows to models
   private rowToTopic(row: any): Topic {
     return new Topic({
-      id: row.topicId,
+      id: row.id || row.topicId,
       name: row.name,
       content: row.content,
       version: row.version,
       parentTopicId: row.parentTopicId,
+      createdAt: new Date(row.createdAt),
+      updatedAt: new Date(row.updatedAt),
     });
   }
 
@@ -236,6 +273,46 @@ export class DatabaseService {
       description: row.description,
       type: row.type,
     });
+  }
+
+  private rowToTopicVersion(row: any): TopicVersion {
+    return new TopicVersion({
+      id: row.id,
+      topicId: row.topicId,
+      name: row.name,
+      content: row.content,
+      version: row.version,
+      parentTopicId: row.parentTopicId,
+      createdAt: new Date(row.createdAt),
+    });
+  }
+
+  async getTopicChildren(topicId: string): Promise<Topic[]> {
+    const children = this.db.prepare('SELECT * FROM topics WHERE parentTopicId = ?').all(topicId);
+    return children.map((c) => this.rowToTopic(c));
+  }
+
+  async getTopicConnections(
+    topicId: string,
+  ): Promise<{ parentId: string | null; childIds: string[] }> {
+    // Get the topic's parent
+    const topic = this.db.prepare('SELECT parentTopicId FROM topics WHERE id = ?').get(topicId) as {
+      parentTopicId: string | null;
+    };
+
+    // Get the topic's children
+    const children = this.db
+      .prepare('SELECT id FROM topics WHERE parentTopicId = ?')
+      .all(topicId) as { id: string }[];
+
+    if (!children || children.length === 0) {
+      return { parentId: topic?.parentTopicId || null, childIds: [] };
+    }
+
+    return {
+      parentId: topic?.parentTopicId || null,
+      childIds: children.map((c) => c.id),
+    };
   }
 
   // Utility methods
