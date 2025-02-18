@@ -25,6 +25,12 @@ async function apiCall(endpoint, method = 'GET', body = null) {
         const data = await response.json();
         
         if (!response.ok) {
+            if (data.status === 401) {
+                localStorage.removeItem('token');
+                authToken = null;
+                refreshUserInfo();
+                return;
+            }
             throw new Error(data.error || 'Something went wrong');
         }
 

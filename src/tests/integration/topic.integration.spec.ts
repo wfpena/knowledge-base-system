@@ -1,5 +1,6 @@
 import { TopicService } from '../../services/TopicService';
 import { DatabaseService } from '../../services/DatabaseService';
+import { Topic } from '../../models/Topic';
 
 describe('Topic Integration Tests', () => {
   let topicService: TopicService;
@@ -11,8 +12,7 @@ describe('Topic Integration Tests', () => {
   });
 
   afterEach(async () => {
-    // Clear database after each test
-    (dbService as any).topics.clear();
+    dbService.clearDatabase();
   });
 
   describe('Topic CRUD Operations', () => {
@@ -45,11 +45,33 @@ describe('Topic Integration Tests', () => {
       );
 
       // Get all versions from database
-      const versions = (dbService as any).topics.get(topic.id);
+      const topicVersions = await dbService.getTopicVersions(topic.id);
 
-      expect(versions).toHaveLength(2);
-      expect(versions[0].version).toBe(1);
-      expect(versions[1].version).toBe(2);
+      expect(topicVersions).toBeDefined();
+      expect(topicVersions.length).toBe(2);
+      expect(topicVersions[0].version).toBe(2);
+      expect(topicVersions[1].version).toBe(1);
+      expect(updatedTopic.content).toBe('Updated Content');
+    });
+
+    it('should be able to get all versions of a topic', async () => {
+      // Create initial version
+      const topic = await topicService.createTopic('Version Test', 'Initial Content', null);
+
+      // Update the topic
+      const updatedTopic = await topicService.updateTopic(
+        topic.id,
+        'Version Test Updated',
+        'Updated Content',
+      );
+
+      // Get all versions from database
+      const topicVersions = await dbService.getTopicVersions(topic.id);
+
+      expect(topicVersions).toBeDefined();
+      expect(topicVersions.length).toBe(2);
+      expect(topicVersions[0].version).toBe(2);
+      expect(topicVersions[1].version).toBe(1);
       expect(updatedTopic.content).toBe('Updated Content');
     });
   });
@@ -68,8 +90,9 @@ describe('Topic Integration Tests', () => {
       const hierarchy = await topicService.getTopicHierarchy(parentTopic.id);
 
       expect(hierarchy.children).toHaveLength(2);
-      expect(hierarchy.children[0].id).toBe(child1.id);
-      expect(hierarchy.children[1].id).toBe(child2.id);
+      const childrenIds = hierarchy.children.map((child: Topic) => child.id);
+      expect(childrenIds).toContain(child1.id);
+      expect(childrenIds).toContain(child2.id);
     });
 
     it('should find shortest path between topics', async () => {

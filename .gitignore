@@ -46,4 +46,9 @@ temp/
 *.tgz
 
 # Yarn Integrity file
-.yarn-integrity 
+.yarn-integrity
+
+# Database
+data/
+*.sqlite
+*.sqlite-journal 

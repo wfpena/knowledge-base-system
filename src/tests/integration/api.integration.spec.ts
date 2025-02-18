@@ -26,9 +26,7 @@ describe('API Integration Tests', () => {
   });
 
   beforeEach(() => {
-    // Clear database before each test
-    (dbService as any).topics.clear();
-    (dbService as any).users.clear();
+    dbService.clearDatabase();
   });
 
   describe('Authentication', () => {

@@ -25,6 +25,7 @@ export function createApp(
   // Auth routes
   app.post('/auth/register', authController.register.bind(authController));
   app.post('/auth/login', authController.login.bind(authController));
+  app.get('/auth/user-info', authController.userInfo.bind(authController));
 
   // Protected routes
   app.use('/topics', authMiddleware);
@@ -60,5 +61,11 @@ export function createApp(
     topicController.getTopicHierarchy.bind(topicController),
   );
 
+  app.get(
+    '/topics/:startId/path/:endId',
+    roleGuard([UserRole.ADMIN, UserRole.EDITOR, UserRole.VIEWER]),
+    topicController.findPath.bind(topicController),
+  );
+
   return app;
-} 
+}
