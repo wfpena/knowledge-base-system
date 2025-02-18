@@ -5,7 +5,11 @@
 - `npm start` - Start production server
 - `npm run lint` - Run ESLint
 - `npm run lint:fix` - Fix ESLint errors
-- `npm test` - Run tests
+- `npm test` - Run all tests
+- `npm run test:watch` - Run tests in watch mode
+- `npm run test:coverage` - Generate test coverage report
+- `npm run test:integration` - Run only integration tests
+- `npm run test:debug` - Debug tests with Node inspector
 
 ## API Endpoints
 
@@ -74,6 +78,8 @@ Authorization: Bearer <jwt_token>
 
 - `GET /topics/:startId/path/:endId` - Find shortest path between topics
 
+- `GET /topics/list` - Returns a list with all topics
+
 ## Project Structure
 
 src/
@@ -93,12 +99,7 @@ The project uses:
 
 ## Database
 
-# TODO change or implement
-The project uses MongoDB as the primary database. Collections include:
-- Topics (with version control)
-- Resources
-- Users
-- Logs
+Currently the database is completely in-memory. Meaning objects are stored in simple JS objects.
 
 ### Database Schema
 
@@ -194,4 +195,73 @@ Logs are stored in:
 - Console (development environment)
 - Files (production environment)
 - MongoDB (for audit logs)
+
+## Testing
+
+The project uses Jest for both unit and integration testing:
+
+### Unit Tests
+- Located in `src/**/*.spec.ts`
+- Test individual components in isolation
+- Mock external dependencies
+
+### Integration Tests
+- Located in `src/tests/integration/*.integration.spec.ts`
+- Test complete API flows
+- Use Supertest to make HTTP requests
+- Test authentication and authorization
+
+### Running Tests
+```bash
+# Run all tests
+npm test
+
+# Run tests in watch mode
+npm run test:watch
+
+# Run only integration tests
+npm run test:integration
+
+# Generate coverage report
+npm run test:coverage
+```
+
+### Test Coverage
+Coverage reports are generated in the `coverage` directory and include:
+- Statement coverage
+- Branch coverage
+- Function coverage
+- Line coverage
+
+## Database
+
+The project uses an in-memory database implementation for development and testing:
+
+### Database Service
+- Implements Map-based storage
+- Supports versioning for topics
+- Maintains referential integrity
+- Provides ACID-like guarantees
+
+### Collections
+```typescript
+// Topics
+Map<string, Topic[]> // Key: topicId, Value: array of versions
+
+// Users
+Map<string, User> // Key: userId, Value: user
+
+// Resources
+Map<string, Resource> // Key: resourceId, Value: resource
+```
+
+### Data Persistence
+- Currently in-memory only
+- Data is cleared between server restarts
+- Suitable for development and testing
+
+To implement a different database:
+1. Keep the DatabaseService interface
+2. Create a new implementation (e.g., MongoDBService)
+3. Update the dependency injection in app.ts
 
