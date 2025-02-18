@@ -1,0 +1,153 @@
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+    font-family: Arial, sans-serif;
+}
+
+.auth-section, .topics-section, .path-section {
+    margin-bottom: 30px;
+    padding: 20px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+}
+
+.form-group {
+    margin-bottom: 20px;
+}
+
+input, textarea {
+    display: block;
+    width: 100%;
+    margin-bottom: 10px;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
+textarea {
+    height: 100px;
+}
+
+button {
+    background-color: #007bff;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+button:hover {
+    background-color: #0056b3;
+}
+
+.topics/list {
+    margin-top: 20px;
+}
+
+.topic-card {
+    border: 1px solid #ddd;
+    padding: 15px;
+    margin-bottom: 10px;
+    border-radius: 4px;
+}
+
+.topic-card h4 {
+    margin: 0 0 10px 0;
+}
+
+.error {
+    color: red;
+    margin: 10px 0;
+}
+
+.success {
+    color: green;
+    margin: 10px 0;
+}
+
+#top-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+#top-bar-left {
+    display: flex;
+    align-items: center;
+}
+
+#top-bar-right {
+    display: flex;
+    align-items: center;
+}
+
+#user-info {
+    display: flex;
+    align-items: center;
+}
+
+#user-info span {
+    margin-right: 10px;
+}
+
+#user-info button {
+    margin-left: 10px;
+}
+
+#top-bar-right button {
+    margin-left: 10px;
+}
+
+#top-bar-right button:hover {
+    background-color: #0056b3;
+}
+
+#top-bar-right button:active {
+    background-color: #004080;
+}
+
+/** TODO add transition for the arrow and collapse/expand the panel */
+.auth-forms-arrow, .register-form-arrow, .login-form-arrow, .create-topic-form-arrow {
+    transition: transform 0.3s ease-in-out;
+}
+
+.auth-forms-arrow:hover, .register-form-arrow:hover, .login-form-arrow:hover, .create-topic-form-arrow:hover {
+    transform: rotate(180deg);
+}
+
+.auth-forms-arrow:active, .register-form-arrow:active, .login-form-arrow:active, .create-topic-form-arrow:active {
+    transform: rotate(0deg);
+}
+
+.auth-forms-arrow:active, .register-form-arrow:active, .login-form-arrow:active, .create-topic-form-arrow:active {
+    transform: rotate(0deg);
+}
+
+.topic-actions {
+    display: flex;
+    gap: 10px;
+    margin: 10px 0;
+}
+
+.topic-form {
+    margin-top: 15px;
+    padding: 15px;
+    border-top: 1px solid #eee;
+}
+
+.topic-form h4 {
+    margin-top: 0;
+    margin-bottom: 15px;
+}
+
+.topic-form input,
+.topic-form textarea {
+    margin-bottom: 10px;
+}
+
+.topic-form button {
+    margin-right: 10px;
+}

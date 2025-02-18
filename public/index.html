@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Knowledge Base System</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="top-bar-container">
+        <div id="user-info"></div>
+    </div>
+    <div id="top-bar">
+        <div id="top-bar-left">
+            <button onclick="autofillForm()">Autofill Form</button>
+        </div>
+        <div id="top-bar-right">
+            <button onclick="loginAsAdmin()">Login as Admin</button>
+        </div>
+        <div id="user-info">
+            <span id="user-name"></span>
+            <button onclick="logout()">Logout</button>
+        </div>
+    </div>
+    <div class="container">
+        <div class="auth-section">
+            <h2 onclick="togglePanel('auth-forms')" style="cursor: pointer">
+                Authentication
+                <span id="auth-forms-arrow">▼</span>
+            </h2>
+            <div id="auth-forms" class="auth-forms">
+                <div class="form-group">
+                    <h3 onclick="togglePanel('register-form')" style="cursor: pointer">
+                        Register
+                        <span id="register-form-arrow">▼</span>
+                    </h3>
+                    <div id="register-form">
+                        <input type="text" id="register-name" placeholder="Name">
+                        <input type="email" id="register-email" placeholder="Email">
+                        <input type="password" id="register-password" placeholder="Password">
+                        <button onclick="register()">Register</button>
+                        <div id="register-result"></div>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <h3 onclick="togglePanel('login-form')" style="cursor: pointer">
+                        Login
+                        <span id="login-form-arrow">▼</span>
+                    </h3>
+                    <div id="login-form">
+                        <div id="login-autofill">
+                            <button onclick="loginAutofill()">Autofill</button>
+                        </div>
+                        <input type="email" id="login-email" placeholder="Email">
+                        <input type="password" id="login-password" placeholder="Password">
+                        <button onclick="login()">Login</button>
+                        <div id="login-result"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="topics-section">
+            <h2>Topics</h2>
+            <button onclick="autofillTopicForm()">Autofill Topic Form</button>
+            <div class="form-group">
+                <h3 onclick="togglePanel('create-topic-form')" style="cursor: pointer">
+                    Create Topic
+                    <span id="create-topic-form-arrow">▼</span>
+                </h3>
+                <div id="create-topic-form">
+                    <input type="text" id="topic-name" placeholder="Topic Name">
+                    <textarea id="topic-content" placeholder="Topic Content"></textarea>
+                    <input type="text" id="parent-topic-id" placeholder="Parent Topic ID (optional)">
+                    <button onclick="createTopic()">Create Topic</button>
+                    <div id="create-topic-result"></div>
+                </div>
+            </div>
+            
+            <div class="topics/list">
+                <h3>Topics List</h3>
+                <button onclick="refreshTopics()">Refresh Topics</button>
+                <div id="topics-container"></div>
+                <div id="topics-result"></div>
+            </div>
+        </div>
+
+        <div class="path-section">
+            <h2>Find Path Between Topics</h2>
+            <div class="form-group">
+                <input type="text" id="start-topic" placeholder="Start Topic ID">
+                <input type="text" id="end-topic" placeholder="End Topic ID">
+                <button onclick="findPath()">Find Path</button>
+                <div id="path-result"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html> 
