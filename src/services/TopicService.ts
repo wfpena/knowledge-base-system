@@ -48,6 +48,7 @@ export class TopicService {
     return this.db.getAllTopics();
   }
 
+  // Recursive topic retrieval
   async getTopicHierarchy(topicId: string): Promise<any> {
     const topic = await this.db.getLatestTopic(topicId);
     if (!topic) {

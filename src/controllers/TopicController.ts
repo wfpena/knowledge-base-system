@@ -12,7 +12,7 @@ export class TopicController {
       const topic = await this.topicService.createTopic(name, content, parentTopicId);
       res.status(201).json(topic);
     } catch (error) {
-      this.logger.error('Failed to create topic', { error });
+      this.logger.error('Failed to create topic', error);
       res.status(400).json({ error: (error as Error).message });
     }
   }

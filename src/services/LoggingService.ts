@@ -19,8 +19,12 @@ export class LoggingService implements Logger {
     this.logger.info(message, { meta });
   }
 
-  error(message: string, meta?: any): void {
-    this.logger.error(message, { meta });
+  error(message: string, error?: any): void {
+    if (error instanceof Error) {
+      this.logger.error(message, { error: error.message, stack: error.stack });
+    } else {
+      this.logger.error(message, { error });
+    }
   }
 
   warn(message: string, meta?: any): void {

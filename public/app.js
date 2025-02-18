@@ -5,6 +5,16 @@ function randomString(length) {
     return Math.random().toString(36).substring(2, 2 + length);
 }
 
+function showFlashAlert(message, type = 'success') {
+    const flashAlert = document.getElementById('flash-alert');
+    flashAlert.innerHTML = message;
+    flashAlert.className = `flash-alert ${type}`;
+    setTimeout(() => {
+        flashAlert.innerHTML = '';
+        flashAlert.className = '';
+    }, 3000);
+}
+
 // API calls
 async function apiCall(endpoint, method = 'GET', body = null) {
     const headers = {
@@ -100,10 +110,10 @@ async function createTopic() {
             content,
             parentTopicId: parentTopicId || null
         });
-        alert('Topic created successfully!');
+        showFlashAlert('Topic created successfully!', 'success');
         refreshTopics();
     } catch (error) {
-        alert(error.message);
+        showFlashAlert(error.message, 'error');
     }
 }
 
@@ -145,16 +155,16 @@ async function refreshTopics() {
             container.appendChild(topicCard);
         });
     } catch (error) {
-        alert(error.message);
+        showFlashAlert(error.message, 'error');
     }
 }
 
 async function viewHierarchy(topicId) {
     try {
         const hierarchy = await apiCall(`/topics/${topicId}/hierarchy`);
-        alert(JSON.stringify(hierarchy, null, 2));
+        showFlashAlert(JSON.stringify(hierarchy, null, 2), 'success');
     } catch (error) {
-        alert(error.message);
+        showFlashAlert(error.message, 'error');
     }
 }
 
@@ -167,7 +177,7 @@ async function findPath() {
         const resultDiv = document.getElementById('path-result');
         resultDiv.innerHTML = `<p>Path found: ${path.join(' → ')}</p>`;
     } catch (error) {
-        alert(error.message);
+        showFlashAlert(error.message, 'error');
     }
 }
 
@@ -218,7 +228,7 @@ async function updateTopic(topicId) {
         hideUpdateForm(topicId);
         refreshTopics();
     } catch (error) {
-        alert(error.message);
+        showFlashAlert(error.message, 'error');
     }
 }
 
@@ -244,7 +254,7 @@ async function createChildTopic(parentId) {
         hideChildForm(parentId);
         refreshTopics();
     } catch (error) {
-        alert(error.message);
+        showFlashAlert(error.message, 'error');
     }
 }
 

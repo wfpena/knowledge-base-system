@@ -17,7 +17,7 @@ export class AuthController {
         role: user.role,
       });
     } catch (error) {
-      this.logger.error('Failed to register user', { error });
+      this.logger.error('Failed to register user', error);
       res.status(400).json({ error: (error as Error).message });
     }
   }
@@ -29,7 +29,7 @@ export class AuthController {
       const token = await this.authService.login(email, password);
       res.json({ token });
     } catch (error) {
-      this.logger.error('Failed to login', { error });
+      this.logger.error('Failed to login', error);
       res.status(401).json({ error: (error as Error).message });
     }
   }
@@ -44,7 +44,7 @@ export class AuthController {
       const user = await this.authService.getUserByToken(token);
       res.json(user);
     } catch (error) {
-      this.logger.error('Failed to get user info', { error });
+      this.logger.error('Failed to get user info', error);
       res.status(401).json({ error: (error as Error).message });
     }
   }

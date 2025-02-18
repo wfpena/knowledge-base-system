@@ -1,3 +1,7 @@
+# Dynamic Knowledge Base System
+
+This is a simple knowledge base system that allows you to create topics and resources.
+
 ## Available Scripts
 
 - `npm run dev` - Start development server with hot-reload
@@ -17,6 +21,11 @@ All endpoints except `/auth/*` require a valid JWT token in the Authorization he
 ```
 Authorization: Bearer <jwt_token>
 ```
+
+### Default admin user
+
+- Email: admin@admin.com
+- Password: admin
 
 ### Authentication
 
