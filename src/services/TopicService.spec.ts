@@ -76,7 +76,7 @@ describe('TopicService', () => {
       mockDb.getLatestTopic.mockResolvedValue(null);
 
       await expect(topicService.updateTopic('123', 'New Name', 'New Content')).rejects.toThrow(
-        'Topic not found',
+        'Cannot update topic with id 123 because it does not exist',
       );
     });
   });

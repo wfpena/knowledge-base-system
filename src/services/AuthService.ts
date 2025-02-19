@@ -19,7 +19,6 @@ export class AuthService {
       id: uuidv4(),
       name,
       email,
-      // Registers as a viewer by default
       role: UserRole.VIEWER,
       password,
     });

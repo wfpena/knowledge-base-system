@@ -37,15 +37,6 @@ This is a simple knowledge base system that allows you to create topics and reso
   npm start
   ```
 
-
-### Default Admin User
-
-The system creates a default admin user on startup:
-
-- Email: admin@admin.com
-- Password: admin
-
-
 ## Available Scripts
 
 - `npm run dev` - Start development server with hot-reload
@@ -88,6 +79,8 @@ Authorization: Bearer <jwt_token>
 ```
 
 ### Authentication
+
+Authentication is handled by JWT tokens.
 
 - `POST /auth/register` - Register a new user
   ```json
@@ -150,7 +143,7 @@ Authorization: Bearer <jwt_token>
 - `GET /topics/list` - Returns a list with all topics
 
 ## Project Structure
-
+```
 src/
 ├── controllers/ # Request handlers
 ├── models/ # Data models
@@ -159,7 +152,7 @@ src/
 ├── tests/ # Integration tests
 ├── config/ # Configuration
 └── index.ts # Application entry point
-
+```
 
 ---
 
@@ -175,22 +168,43 @@ GET /topics/:startId/path/:endId
 ```
 
 ### Algorithm Explanation
-Build a Graph (Adjacency List)
 
-- Fetches all topics from the database.
-- Constructs a graph representation where each topic is a node.
-- Each node connects to its parent (if it has one) and its children (topics where it is the parent).
-
-Perform BFS to Find the Shortest Path
-
-- Uses a queue to explore topics level by level, ensuring the shortest path is found first.
-- Tracks visited topics to avoid cycles and redundant searches.
-- Stops when the endTopicId is reached, returning the shortest path.
+1. Initialize BFS
+  - Starts from startTopicId and uses a queue to track paths.
+  - Uses a visited set to avoid cycles.
+2. Expand Paths Dynamically
+  - At each step, it retrieves topic connections (parentId and childIds) using this.db.getTopicConnections(currentId).
+  - Adds unvisited neighbors to the queue, extending the path.
+3. Find the Shortest Path
+  - If endTopicId is reached, returns the shortest path.
+  - If no path exists, returns an empty array.
 
 ### Complexity Analysis
-- Graph Construction: O(N²) (due to filtering for children, can be optimized with a map).
-- BFS Traversal: O(N + E) (where N is the number of topics and E is the number of connections).
-- Overall Complexity: ~O(N²) in the worst case.
+- Time Complexity: O(N + E), where N is the number of topics and E is the number of connections.
+- Space Complexity: O(N) for the visited set and queue.
+
+
+## Topics Versioning
+
+This versioning system maintains a history of topic updates by storing each modification as a new version while preserving the previous state in a separate table (`topic_versions`).
+
+How It Works
+1. Retrieve Latest Version
+  - `getLatestTopic(id)` fetches the most recent version of the topic.
+  - If the topic does not exist, an error is thrown.
+2. Create a New Version
+  - A new topic version is created with an incremented version number.
+  - The updatedAt timestamp is set to the current time.
+3. Database Update (Transactional)
+  - Main topics table: Updates the current topic with the latest changes.
+  - topic_versions table: Stores the previous version before updating.
+  - A transaction ensures consistency (BEGIN, COMMIT, ROLLBACK on failure).
+
+Benefits
+- Full History Tracking – Each update is logged, enabling rollback or auditing.
+- Data Integrity – Transactions prevent partial updates.
+- Simple Retrieval – The latest topic remains in the topics table for fast access.
+
 
 ---
 
@@ -205,9 +219,9 @@ The project uses:
 ## Database
 
 This project uses `better-sqlite3` for database operations. Note that:
-- All SQLite operations are synchronous/blocking by design
-- This is intentional and makes `better-sqlite3` faster than other SQLite implementations
-- The codebase maintains async/await patterns for:
+- All SQLite operations are **synchronous/blocking** by design
+- **This is intentional** and makes `better-sqlite3` faster than other SQLite implementations
+- The codebase maintains **async/await** patterns for:
   - Interface consistency
   - Future compatibility with other databases
   - Error handling patterns
@@ -222,47 +236,78 @@ Data is currently stored in the `data` directory.
 
 The database is a simple sqlite database with four tables: `topics`, `topic_versions`, `resources`, and `users`.
 
-Its relational structure is as follows:
+### Tables Overview
 
-#### Topics
-```json
-{
-  "_id": "ObjectId",
-  "name": "string",
-  "content": "string",
-  "version": "number",
-  "parentTopicId": "ObjectId | null",
-  "createdAt": "Date",
-  "updatedAt": "Date",
-  "createdBy": "ObjectId"
-}
-```
+#### `topics` (Main Topics Table)
+  - Stores the latest version of each topic.
 
-#### Topic Versions
-```json
-{
-  "_id": "ObjectId",
-  "topicId": "ObjectId",
-  "url": "string",
-  "description": "string",
-  "type": "enum['video', 'article', 'pdf']",
-  "createdAt": "Date",
-  "updatedAt": "Date",
-  "createdBy": "ObjectId"
-}
-```
+| Column | Type | Constraints | Description |
+| --- | --- | --- | --- |
+| id | TEXT | PRIMARY KEY | Unique identifier for the topic. |
+| name | TEXT | NOT NULL | Topic name. |
+| content | TEXT | NOT NULL | Topic content. |
+| currentVersion | INTEGER | NOT NULL, DEFAULT 1 | Tracks the latest version of the topic. |
+| parentTopicId | TEXT | NULL, FOREIGN KEY | Links to a parent topic (if hierarchical). |
+| createdAt | TIMESTAMP | DEFAULT CURRENT_TIMESTAMP | Creation timestamp. |
+| updatedAt | TIMESTAMP | DEFAULT CURRENT_TIMESTAMP | Last modification timestamp. |
 
-#### Users
-```json
-{
-  "_id": "ObjectId",
-  "name": "string",
-  "email": "string",
-  "role": "enum['admin', 'editor', 'viewer']",
-  "createdAt": "Date",
-  "updatedAt": "Date"
-}
-```
+Purpose:
+  - Stores only the latest version of each topic.
+  - Allows hierarchical relationships with parentTopicId.
+
+
+#### `topic_versions` (Topic Versioning Table)
+  - Stores historical versions of topics for tracking changes.
+
+| Column | Type | Constraints | Description |
+| --- | --- | --- | --- |
+| id | INTEGER | PRIMARY KEY AUTOINCREMENT | Unique version entry ID. |
+| topicId | TEXT | NOT NULL, FOREIGN KEY | Links to the topics table. |
+| name | TEXT | NOT NULL | Topic name at this version. |
+| content | TEXT | NOT NULL | Topic content at this version. |
+| version | INTEGER | NOT NULL | Version number of the topic. |
+| parentTopicId | TEXT | NULL, FOREIGN KEY | Parent topic (if applicable). |
+| createdAt | TIMESTAMP | DEFAULT CURRENT_TIMESTAMP | Timestamp when this version was created. |
+
+Purpose:
+  - Preserves past versions of topics.
+  - Ensures unique versioning per topic with UNIQUE(topicId, version).
+
+
+#### `users` (User Authentication Table)
+  - Stores user credentials and roles.
+
+| Column | Type | Constraints | Description |
+| --- | --- | --- | --- |
+| id | TEXT | PRIMARY KEY | Unique user ID. |
+| name | TEXT | NOT NULL | User's full name. |
+| email | TEXT | UNIQUE, NOT NULL | User's email (must be unique). |
+| passwordHash | TEXT | NOT NULL | Encrypted password hash. |
+| role | TEXT | NOT NULL | User role (e.g., admin, editor, viewer). |
+| createdAt | TEXT | NOT NULL | Account creation timestamp. |
+| updatedAt | TEXT | NOT NULL | Last update timestamp. |
+
+Purpose:
+  - Manages user authentication and authorization.
+  - Enforces unique email addresses.
+
+
+#### `resources` (External Resources Table)
+  - Links additional learning materials to topics.
+
+| Column | Type | Constraints | Description |
+| --- | --- | --- | --- |
+| id | TEXT | PRIMARY KEY | Unique resource ID. |
+| topicId | TEXT | NOT NULL, FOREIGN KEY | Links the resource to a topic. |
+| url | TEXT | NOT NULL | Resource link (e.g., article, video). |
+| description | TEXT | NOT NULL | Brief description of the resource. |
+| type | TEXT | NOT NULL | Type of resource (e.g., video, article). |
+| createdAt | TEXT | NOT NULL | Timestamp when the resource was added. |
+| updatedAt | TEXT | NOT NULL | Timestamp of the last update. |
+
+Purpose:
+  - Associates external resources (articles, videos) with topics.
+  - Allows filtering by resource type.
 
 > See the `src/models` directory for the full definitions of the models.
 > And go here for the [DatabaseService](src/services/DatabaseService.ts) implementation of the database and DDL statements.
@@ -279,6 +324,7 @@ It is highly recommended to change these credentials in production.
 The system implements role-based access control (RBAC) with the following roles:
 
 ### User Roles
+
 - **Admin**: Full system access
   - Can manage users
   - Can perform all operations on topics and resources
@@ -298,6 +344,68 @@ The system implements role-based access control (RBAC) with the following roles:
 
 ### API Security
 All endpoints except authentication endpoints require a valid JWT token.
+
+
+## SOLID Principles
+
+The project implements the SOLID principles to ensure a clean and maintainable codebase.
+
+### Single Responsibility Principle
+
+Each component follows the Single Responsibility Principle:
+
+- **Controllers**: Handle HTTP requests/responses only
+- **Services**: Contain business logic
+- **Models**: Define data structures and validation
+- **Repositories**: Handle data persistence
+
+### Open/Closed Principle
+The system is designed to be extendable without requiring modifications to existing code:
+
+- **AuthService**: This service is open for extension but closed for modification.
+  - Example: New authentication methods can be added by extending the class or interface without altering the existing codebase.
+
+- **BaseEntity**: Provide a foundation for creating new models by extending them, ensuring that the existing models are unaffected by new implementations.
+
+- **Logger**: Components like Logger are designed using interfaces, allowing new logging methods or strategies to be implemented without changing the existing logging infrastructure.
+
+  - Example: Adding a new log provider like Winston without needing to modify the base logging logic.
+
+
+### Liskov Substitution Principle
+Subtypes can be substituted for their base types:
+- All models extend `BaseEntity`
+- Different logger implementations follow the `Logger` interface
+- Services depend on abstractions rather than concrete implementations
+
+### Interface Segregation Principle
+Interfaces are kept focused and minimal:
+- `Logger` interface defines only essential logging methods
+- Controllers expose only necessary endpoints
+- Services have clearly defined boundaries
+
+### Dependency Inversion Principle
+High-level modules depend on abstractions:
+- Services accept interfaces rather than concrete implementations
+- Dependency injection used throughout the application
+
+### Potential Improvements
+
+1. **Database Service Separation** (*Single Responsibility Principle (SRP)* and *Dependency Inversion Principle (DIP)*):
+   - Split `DatabaseService` into separate repositories (TopicRepository, UserRepository)
+   - Create a Repository interface for each entity
+   - Implement different storage backends (SQL, NoSQL) behind same interface
+
+2. **Service Layer Refinement**:
+   - Further separate business logic from data access
+   - Create dedicated DTOs for service layer
+   - Add domain events for better decoupling
+
+3. **Controller Enhancement**:
+   - Implement request/response DTOs
+   - Add validation middleware
+   - Separate route configuration from controllers
+
 
 ## Logging
 
@@ -358,3 +466,19 @@ Coverage reports are generated in the `coverage` directory and include:
 - Line coverage
 
 > The generated coverage report is in HTML format and can be viewed by opening the `index.html` file in the `coverage` directory.
+
+---
+
+
+## NOTES: Frontend and admin user
+
+Currently if you open `http://localhost:3016` you will see a draft playground screen for calling the API.
+
+It is served from the `public` directory.
+
+The admin user is pre-created on startup and the credentials are:
+
+- Email: admin@admin.com
+- Password: admin
+
+> The frontend is a draft and used for initial testing and development.

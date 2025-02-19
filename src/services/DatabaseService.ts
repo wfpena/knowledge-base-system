@@ -174,6 +174,7 @@ export class DatabaseService {
     return rows.map(this.rowToTopicVersion);
   }
 
+  // TODO: Pagination
   async getAllTopics(): Promise<Topic[]> {
     const stmt = this.db.prepare(`SELECT t.* FROM topics t`);
     const rows = stmt.all();
@@ -287,9 +288,11 @@ export class DatabaseService {
     });
   }
 
-  async getTopicChildren(topicId: string): Promise<Topic[]> {
-    const children = this.db.prepare('SELECT * FROM topics WHERE parentTopicId = ?').all(topicId);
-    return children.map((c) => this.rowToTopic(c));
+  async getTopicChildren(topicId: string): Promise<Pick<Topic, 'id' | 'name'>[]> {
+    const children = this.db
+      .prepare('SELECT id, name FROM topics WHERE parentTopicId = ?')
+      .all(topicId) as { id: string; name: string }[];
+    return children.map((c) => ({ id: c.id, name: c.name }));
   }
 
   async getTopicConnections(

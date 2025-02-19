@@ -190,7 +190,7 @@ describe('Topic Integration Tests', () => {
     it('should handle invalid topic updates', async () => {
       await expect(
         topicService.updateTopic('non-existent-id', 'New Name', 'New Content'),
-      ).rejects.toThrow('Topic not found');
+      ).rejects.toThrow('Cannot update topic with id non-existent-id because it does not exist');
     });
 
     it('should validate topic data on creation', async () => {

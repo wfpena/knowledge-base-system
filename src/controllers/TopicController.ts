@@ -2,6 +2,8 @@ import { Request, Response } from 'express';
 import { TopicService } from '../services/TopicService';
 import { Logger } from '../types/Logger';
 
+// TODO: Add error handling globally
+// TODO: Add DTOs
 export class TopicController {
   constructor(private topicService: TopicService, private logger: Logger) {}
 

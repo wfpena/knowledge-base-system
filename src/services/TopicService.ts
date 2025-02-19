@@ -31,7 +31,7 @@ export class TopicService {
   async updateTopic(id: string, name: string, content: string): Promise<Topic> {
     const currentTopic = await this.db.getLatestTopic(id);
     if (!currentTopic) {
-      throw new Error('Topic not found');
+      throw new Error(`Cannot update topic with id ${id} because it does not exist`);
     }
 
     const newVersion = new Topic({

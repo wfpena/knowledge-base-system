@@ -21,7 +21,11 @@ export class LoggingService implements Logger {
 
   error(message: string, error?: any): void {
     if (error instanceof Error) {
-      this.logger.error(message, { error: error.message, stack: error.stack });
+      this.logger.error(message, {
+        error,
+        message: error.message,
+        stack: error.stack,
+      });
     } else {
       this.logger.error(message, { error });
     }
